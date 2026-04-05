@@ -1,3 +1,1 @@
-# world-simulator-text-adventure
-
-AI-driven text adventure game.
+# world-simulator-text-adventure\n\nAI-driven text adventure game.\n
