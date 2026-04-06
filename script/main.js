@@ -196,13 +196,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.tab-pane').forEach(pane => {
       pane.classList.toggle('active', pane.id === tabId);
     });
-    currentStepIndex = configSteps.indexOf(tabId);
+    const idx = configSteps.indexOf(tabId);
+    currentStepIndex = idx >= 0 ? idx : currentStepIndex;
     updateConfigActions();
   }
 
   function renderNpcDrafts() {
+    if (!npcEditorList) return;
     npcEditorList.innerHTML = '';
-    npcEmpty.classList.toggle('hidden', npcDrafts.length > 0);
+    npcEmpty?.classList.toggle('hidden', npcDrafts.length > 0);
 
     npcDrafts.forEach((npc, index) => {
       const item = document.createElement('div');
@@ -268,6 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function collectNpcDraftsFromDom() {
+    if (!npcEditorList) return;
     npcDrafts = [...npcEditorList.querySelectorAll('.npc-editor-card')].map(card => ({
       id: card.dataset.id,
       source: card.querySelector('.npc-editor-source')?.textContent === 'AI' ? 'ai' : 'custom',
@@ -533,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 发送时立即清空回复建议
     ui.actionButtons.innerHTML = '';
     ui.actionButtons.classList.add('hidden');
-    document.getElementById('round-history-panel').classList.add('hidden');
+    document.getElementById('round-history-panel')?.classList.add('hidden');
 
     if (engine.currentRoundIndex !== null) {
       engine.branchFromRound(engine.currentRoundIndex);
@@ -578,18 +581,18 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshModels(apiUrlInput, apiKeyInput, modelSelect, refreshBtn);
   });
 
-  addNpcBtn.addEventListener('click', () => {
+  addNpcBtn?.addEventListener('click', () => {
     collectNpcDraftsFromDom();
     npcDrafts.unshift(createNpcDraft());
     renderNpcDrafts();
   });
 
-  npcEditorList.addEventListener('input', () => {
+  npcEditorList?.addEventListener('input', () => {
     collectNpcDraftsFromDom();
     updateConfigActions();
   });
 
-  npcEditorList.addEventListener('change', () => {
+  npcEditorList?.addEventListener('change', () => {
     collectNpcDraftsFromDom();
     updateConfigActions();
   });
@@ -1026,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!confirm(`确定回到第 ${idx + 1} 回？之后的回合将会消失。`)) return;
           engine.branchFromRound(idx);
           ui.renderRound(engine.rounds[idx]);
-          document.getElementById('round-history-panel').classList.add('hidden');
+          document.getElementById('round-history-panel')?.classList.add('hidden');
           updateRoundIndicator();
           saveGameState();
         });
@@ -1040,29 +1043,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const roundHistoryPanel = document.getElementById('round-history-panel');
   const rhCloseBtn = document.getElementById('rh-close-btn');
 
-  itemsBtn.addEventListener('click', () => {
-    // 首次使用教程动画
+  itemsBtn?.addEventListener('click', () => {
     if (!localStorage.getItem('items_tutorial_shown')) {
       localStorage.setItem('items_tutorial_shown', '1');
     }
-    itemsBtn.classList.remove('items-tutorial');
-    const isHidden = roundHistoryPanel.classList.contains('hidden');
+    itemsBtn?.classList.remove('items-tutorial');
+    const isHidden = roundHistoryPanel?.classList.contains('hidden') !== false;
     if (isHidden) {
       renderRoundHistory();
-      roundHistoryPanel.classList.remove('hidden');
+      roundHistoryPanel?.classList.remove('hidden');
     } else {
-      roundHistoryPanel.classList.add('hidden');
+      roundHistoryPanel?.classList.add('hidden');
     }
   });
 
-  rhCloseBtn.addEventListener('click', () => {
-    roundHistoryPanel.classList.add('hidden');
+  rhCloseBtn?.addEventListener('click', () => {
+    roundHistoryPanel?.classList.add('hidden');
   });
 
   // 首次进入游戏页时触发教程脉冲动画
   if (!localStorage.getItem('items_tutorial_shown')) {
     setTimeout(() => {
-      itemsBtn.classList.add('items-tutorial');
+      itemsBtn?.classList.add('items-tutorial');
     }, 1200);
   }
 
@@ -1146,7 +1148,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // NPC 卡片：AI生成 / 删除 按钮事件代理
-  npcEditorList.addEventListener('click', (e) => {
+  npcEditorList?.addEventListener('click', (e) => {
     const card = e.target.closest('.npc-editor-card');
     if (!card) return;
 
