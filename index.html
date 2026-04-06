@@ -58,14 +58,14 @@
     <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2 id="config-modal-title" class="modal-title">游戏设置</h2>
-        <button id="cfg-random-btn" class="btn btn-random">🎲 随机生成</button>
+        <button id="cfg-random-btn" class="btn btn-random hidden">🎲 随机生成</button>
       </div>
 
       <!-- Tab 导航 -->
       <div class="tab-nav">
         <button class="tab-btn active" data-tab="tab-player">玩家</button>
-        <button class="tab-btn" data-tab="tab-world">世界</button>
-        <button class="tab-btn" data-tab="tab-npc">NPC</button>
+        <button class="tab-btn" data-tab="tab-world">世界观</button>
+        <button id="tab-npc-btn" class="tab-btn hidden" data-tab="tab-npc">角色</button>
       </div>
 
       <!-- 玩家设置 -->
@@ -91,7 +91,7 @@
       <!-- 世界设置 -->
       <div id="tab-world" class="tab-pane">
         <div class="form-group">
-          <label for="cfg-world-bg">世界 / 背景描述</label>
+          <label for="cfg-world-bg">世界观描述</label>
           <textarea id="cfg-world-bg" class="auto-resize" rows="3" placeholder="例如：一座被浓雾常年笼罩的沿海古城，表面宁静祥和，实则暗藏诡秘与禁忌，你是一名刚调职到此地的年轻警官…" autocomplete="off"></textarea>
         </div>
         <div class="form-group">
@@ -101,18 +101,18 @@
       </div>
 
       <!-- NPC 设置 -->
-      <div id="tab-npc" class="tab-pane">
-        <div class="npc-section-header">
-          <span>NPC 列表</span>
-          <button id="add-npc-btn" class="btn btn-outline btn-sm">＋ 添加角色</button>
+      <div id=”tab-npc” class=”tab-pane”>
+        <div class=”npc-section-header”>
+          <span>角色列表</span>
+          <button id=”add-npc-btn” class=”btn btn-outline btn-sm”>＋ 添加角色</button>
         </div>
-        <div id="npc-editor-list" class="npc-editor-list"></div>
-        <div id="npc-empty" class="npc-empty">先点击“随机生成”或“添加角色”创建 NPC。</div>
+        <div id=”npc-editor-list” class=”npc-editor-list”></div>
+        <div id=”npc-empty” class=”npc-empty”>暂无角色。可手动添加，或游戏开始后由 AI 自动识别。</div>
       </div>
 
-      <div class="modal-actions">
-        <button id="cfg-start-btn" class="btn btn-primary">下一步</button>
-        <button id="cfg-back-btn" class="btn btn-secondary">上一步</button>
+      <div class=”modal-actions”>
+        <button id=”cfg-start-btn” class=”btn btn-primary”>下一步</button>
+        <button id=”cfg-back-btn” class=”btn btn-secondary”>取消</button>
       </div>
     </div>
   </div>
@@ -125,9 +125,10 @@
     <!-- 顶部工具栏 -->
     <div id="toolbar">
       <span class="toolbar-title">世界模拟器</span>
+      <span id="round-indicator" class="round-indicator hidden"></span>
       <div class="toolbar-actions">
         <button id="new-game-btn"  class="toolbar-btn">新游戏</button>
-        <button id="game-settings-btn" class="toolbar-btn">游戏设置</button>
+        <button id="game-settings-btn" class="toolbar-btn">角色管理</button>
         <button id="save-game-btn" class="toolbar-btn">存档</button>
         <button id="load-game-btn" class="toolbar-btn">读档</button>
         <button id="backdoor-btn"  class="toolbar-btn hidden">Prompt管理</button>
@@ -157,9 +158,19 @@
         <!-- 行动建议按钮区 -->
         <div id="action-buttons" class="hidden"></div>
 
+        <!-- 后悔药历史面板 -->
+        <div id="round-history-panel" class="round-history-panel hidden">
+          <div class="rh-header">
+            <span class="rh-title">💊 后悔药 — 点击回合可回溯</span>
+            <button id="rh-close-btn" class="rh-close">✕</button>
+          </div>
+          <div id="rh-list" class="rh-list"></div>
+        </div>
+
         <!-- 输入区 -->
         <div id="input-area">
-          <textarea id="player-input" rows="2" placeholder="输入自定义行动...（Enter 发送，Shift+Enter 换行，← → 切换回合）" autocomplete="off" spellcheck="false"></textarea>
+          <button id="items-btn" class="items-btn" title="后悔药 · 查看回合历史">💊</button>
+          <textarea id="player-input" rows="2" placeholder="输入自定义行动…（Enter 发送，Shift+Enter 换行）" autocomplete="off" spellcheck="false"></textarea>
           <button id="submit-btn" class="btn btn-primary">发送</button>
         </div>
 

@@ -40,7 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const submitBtn = document.getElementById('submit-btn');
   const toastEl = document.getElementById('toast');
 
-  const configSteps = ['tab-player', 'tab-world', 'tab-npc'];
+  // 新游戏流程只需两步（玩家 → 世界观），NPC 由游戏后自动解析 + 角色管理入口维护
+  const configSteps = ['tab-player', 'tab-world'];
   let configMode = 'new';
   let currentStepIndex = 0;
   let npcDrafts = [];
@@ -57,7 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
       traits: overrides.traits || '',
       appearance: overrides.appearance || '',
       extra: overrides.extra || '',
-      stage: overrides.stage || '陌生',
       source: overrides.source || 'custom',
     };
   }
@@ -153,16 +153,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function validateNpcDrafts(showError = false) {
     const enabled = npcDrafts.filter(npc => npc.enabled);
-    if (!enabled.length) {
-      if (showError) showToast('至少启用一个 NPC 才能开始游戏', true);
-      return false;
-    }
+    if (!enabled.length) return true; // NPCs are optional
 
-    const requiredFields = ['name', 'gender', 'age', 'job', 'traits', 'appearance', 'stage'];
+    const requiredFields = ['name', 'gender', 'age', 'job', 'traits', 'appearance'];
     for (const npc of enabled) {
       const missing = requiredFields.find(field => !String(npc[field] || '').trim());
       if (missing) {
-        if (showError) showToast(`NPC「${npc.name || '未命名角色'}」还有未填写字段`, true);
+        if (showError) showToast(`角色「${npc.name || '未命名角色'}」还有未填写字段`, true);
         return false;
       }
     }
@@ -175,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inNpcOnlyMode = configMode === 'edit-npc';
 
     cfgBackBtn.classList.toggle('hidden', currentStepIndex === 0 && !inNpcOnlyMode);
+    cfgBackBtn.textContent = inNpcOnlyMode ? '取消' : (currentStepIndex === 0 ? '取消' : '上一步');
     cfgStartBtn.disabled = false;
 
     if (step === 'tab-player') {
@@ -182,10 +180,11 @@ document.addEventListener('DOMContentLoaded', () => {
       cfgStartBtn.textContent = '下一步';
     } else if (step === 'tab-world') {
       cfgRandomBtn.classList.remove('hidden');
-      cfgStartBtn.textContent = '下一步';
+      cfgStartBtn.textContent = '开始游戏';
     } else {
-      cfgRandomBtn.classList.remove('hidden');
-      cfgStartBtn.textContent = configMode === 'edit-npc' ? '应用设置' : '开始游戏';
+      // NPC-only edit mode
+      cfgRandomBtn.classList.add('hidden');
+      cfgStartBtn.textContent = '应用设置';
       cfgStartBtn.disabled = !validateNpcDrafts(false);
     }
   }
@@ -212,10 +211,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="npc-editor-header">
           <label class="npc-editor-toggle">
             <input type="checkbox" data-field="enabled" ${npc.enabled ? 'checked' : ''}>
-            <span>启用角色 ${index + 1}</span>
+            <span>角色 ${index + 1}</span>
           </label>
           <div class="npc-editor-tools">
-            <span class="npc-editor-source">${npc.source === 'ai' ? 'AI生成' : '手动添加'}</span>
+            <span class="npc-editor-source">${npc.source === 'ai' ? 'AI' : '手动'}</span>
+            <button type="button" class="btn btn-outline btn-sm" data-action="ai-gen">AI生成</button>
             <button type="button" class="btn btn-outline btn-sm npc-editor-remove" data-action="remove">删除</button>
           </div>
         </div>
@@ -242,13 +242,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <label>职业</label>
             <input type="text" data-field="job" value="${htmlEsc(npc.job)}" autocomplete="off">
           </div>
-          <div class="form-group">
-            <label>初始关系阶段</label>
-            <select data-field="stage">
-              <option value="陌生" ${npc.stage === '陌生' ? 'selected' : ''}>陌生</option>
-              <option value="熟人" ${npc.stage === '熟人' ? 'selected' : ''}>熟人</option>
-            </select>
-          </div>
         </div>
         <div class="form-group">
           <label>性格标签</label>
@@ -256,16 +249,19 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="form-group">
           <label>外貌特征</label>
-          <textarea rows="2" data-field="appearance" autocomplete="off">${htmlEsc(npc.appearance)}</textarea>
+          <textarea class="auto-resize" rows="2" data-field="appearance" autocomplete="off">${htmlEsc(npc.appearance)}</textarea>
         </div>
         <div class="form-group">
           <label>补充信息</label>
-          <textarea rows="2" data-field="extra" autocomplete="off">${htmlEsc(npc.extra)}</textarea>
+          <textarea class="auto-resize" rows="2" data-field="extra" autocomplete="off">${htmlEsc(npc.extra)}</textarea>
         </div>
       `;
 
       item.dataset.id = npc.id;
       npcEditorList.appendChild(item);
+
+      // 初始化 auto-resize
+      item.querySelectorAll('textarea.auto-resize').forEach(ta => initAutoResize(ta));
     });
 
     updateConfigActions();
@@ -274,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function collectNpcDraftsFromDom() {
     npcDrafts = [...npcEditorList.querySelectorAll('.npc-editor-card')].map(card => ({
       id: card.dataset.id,
-      source: card.querySelector('.npc-editor-source')?.textContent === 'AI生成' ? 'ai' : 'custom',
+      source: card.querySelector('.npc-editor-source')?.textContent === 'AI' ? 'ai' : 'custom',
       enabled: card.querySelector('[data-field="enabled"]').checked,
       name: card.querySelector('[data-field="name"]').value.trim(),
       gender: card.querySelector('[data-field="gender"]').value,
@@ -283,7 +279,6 @@ document.addEventListener('DOMContentLoaded', () => {
       traits: card.querySelector('[data-field="traits"]').value.trim(),
       appearance: card.querySelector('[data-field="appearance"]').value.trim(),
       extra: card.querySelector('[data-field="extra"]').value.trim(),
-      stage: card.querySelector('[data-field="stage"]').value,
     }));
   }
 
@@ -294,20 +289,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function openConfigModal(mode = 'new') {
     configMode = mode;
-    configModalTitle.textContent = mode === 'edit-npc' ? '游戏设置' : '游戏设置';
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      const isNpc = btn.dataset.tab === 'tab-npc';
-      btn.classList.toggle('hidden', mode === 'edit-npc' && !isNpc);
-    });
+    const npcTabBtn = document.getElementById('tab-npc-btn');
 
     if (mode === 'edit-npc') {
-      populatePlayerWorld(currentGameConfig || {});
+      configModalTitle.textContent = '角色管理';
+      // 仅显示 NPC tab，隐藏其他 tab
+      document.querySelectorAll('[data-tab]').forEach(btn => {
+        btn.classList.toggle('hidden', btn.dataset.tab !== 'tab-npc');
+      });
+      npcTabBtn.classList.remove('hidden');
       document.getElementById('tab-player').classList.remove('active');
       document.getElementById('tab-world').classList.remove('active');
-      document.getElementById('tab-player').classList.add('config-readonly');
-      document.getElementById('tab-world').classList.add('config-readonly');
       switchTab('tab-npc');
     } else {
+      configModalTitle.textContent = '游戏设置';
+      // 新游戏：只显示玩家 + 世界观 tab，隐藏 NPC tab
+      document.querySelectorAll('[data-tab]').forEach(btn => {
+        btn.classList.toggle('hidden', btn.dataset.tab === 'tab-npc');
+      });
       document.getElementById('tab-player').classList.remove('config-readonly');
       document.getElementById('tab-world').classList.remove('config-readonly');
       switchTab(configSteps[0]);
@@ -405,7 +404,6 @@ document.addEventListener('DOMContentLoaded', () => {
         traits: npc.traits,
         appearance: npc.appearance,
         extra: npc.extra,
-        stage: npc.stage === '熟人' ? '熟人' : '陌生',
       }));
       renderNpcDrafts();
     }
@@ -433,20 +431,12 @@ document.addEventListener('DOMContentLoaded', () => {
     cfgRandomBtn.textContent = '🎲 生成中…';
 
     try {
-      const target = currentStepIndex === 1 ? 'world' : 'npc';
-      const cfg = await fetchRandomConfig(target);
-      if (target === 'world') {
-        if (cfg.world?.background) {
-          document.getElementById('cfg-world-bg').value = cfg.world.background;
-        }
-        if (cfg.world?.scene) {
-          document.getElementById('cfg-world-scene').value = cfg.world.scene;
-        }
-        showToast('世界内容已生成');
-      } else {
-        applyRandomConfig(cfg);
-        showToast('已生成 3 个 AI 角色');
-      }
+      const cfg = await fetchRandomConfig('world');
+      const bgEl = document.getElementById('cfg-world-bg');
+      const sceneEl = document.getElementById('cfg-world-scene');
+      if (cfg.world?.background) { bgEl.value = cfg.world.background; autoResize(bgEl); }
+      if (cfg.world?.scene)      { sceneEl.value = cfg.world.scene; autoResize(sceneEl); }
+      showToast('世界观已随机生成');
     } catch (err) {
       showToast('生成失败：' + err.message, true);
     } finally {
@@ -465,17 +455,22 @@ document.addEventListener('DOMContentLoaded', () => {
       `[玩家设定]`,
       `姓名：${player.name}，性别：${player.gender}，性格：${player.traits}`,
       '',
-      `[世界背景]`,
+      `[世界观]`,
       world.background,
       `开场场景：${world.scene}`,
-      '',
-      `[NPC设定]`,
-      ...npcs.map(npc =>
-        `• ${npc.name}：${npc.gender}，${npc.age}岁，${npc.job}，性格[${npc.traits}]，外貌[${npc.appearance}]${npc.extra ? `，补充信息[${npc.extra}]` : ''}，初始关系：${npc.stage}`
-      ),
-      '',
-      `请根据以上设定直接生成开场剧情，输出完整面板和行动建议，无需再介绍游戏规则。`,
     ];
+
+    const enabledNpcs = (npcs || []).filter(n => n.enabled !== false);
+    if (enabledNpcs.length) {
+      lines.push('', '[角色设定]');
+      enabledNpcs.forEach(npc => {
+        lines.push(
+          `• ${npc.name}：${npc.gender}，${npc.age}岁，${npc.job}，性格[${npc.traits}]，外貌[${npc.appearance}]${npc.extra ? `，补充[${npc.extra}]` : ''}`
+        );
+      });
+    }
+
+    lines.push('', `请根据以上设定直接生成开场剧情，输出完整面板和行动建议，无需介绍游戏规则。`);
     const text = lines.join('\n').trim();
     engine.setConfig(text);
     return text;
@@ -525,6 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ui.renderHistory(engine.conversationHistory);
     }
 
+    updateRoundIndicator();
     syncSaveButtons();
     showToast('存档已读取');
   }
@@ -534,19 +530,29 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.isStreaming = true;
     ui.setLoading(true);
 
-    // 发送时立即清空回复建议，等下次 AI 回复后重新展示
+    // 发送时立即清空回复建议
     ui.actionButtons.innerHTML = '';
     ui.actionButtons.classList.add('hidden');
+    document.getElementById('round-history-panel').classList.add('hidden');
 
     if (engine.currentRoundIndex !== null) {
       engine.branchFromRound(engine.currentRoundIndex);
-      ui.clearOutput();
     }
+
+    // 每回合独立显示
+    ui.clearOutput();
 
     try {
       if (!silent && text && text.trim()) ui.appendUserMessage(text);
       const response = await engine.sendMessage(text);
-      await ui.streamResponse(response);
+      const fullText = await ui.streamResponse(response);
+
+      // 首次回合：尝试从 AI 输出自动解析 NPC
+      if (engine.rounds.length === 1) {
+        autoPopulateNpcsFromOutput(fullText);
+      }
+
+      updateRoundIndicator();
       saveGameState();
       syncSaveButtons();
     } catch (err) {
@@ -588,14 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateConfigActions();
   });
 
-  npcEditorList.addEventListener('click', (e) => {
-    const removeBtn = e.target.closest('[data-action="remove"]');
-    if (!removeBtn) return;
-    const card = e.target.closest('.npc-editor-card');
-    collectNpcDraftsFromDom();
-    npcDrafts = npcDrafts.filter(npc => npc.id !== card.dataset.id);
-    renderNpcDrafts();
-  });
+  // npcEditorList click 由下方统一代理（含 ai-gen + remove）
 
   // Tab 标签直接点击切换（自由跳转，无需按顺序）
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -633,11 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   cfgBackBtn.addEventListener('click', () => {
-    if (configMode === 'edit-npc') {
-      closeConfigModal();
-      return;
-    }
-    if (currentStepIndex === 0) {
+    if (configMode === 'edit-npc' || currentStepIndex === 0) {
       closeConfigModal();
       return;
     }
@@ -647,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
   cfgStartBtn.addEventListener('click', async () => {
     if (configMode === 'edit-npc') {
       if (!validateNpcDrafts(true)) return;
-      buildConfigMessage();   // 更新 currentGameConfig + engine.configMessage，下次请求自动生效
+      buildConfigMessage();
       closeConfigModal();
       showToast('角色设置已更新，下一回合起生效');
       return;
@@ -659,19 +654,17 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // 世界观步骤 → 直接开始游戏（NPCs 可为空，游戏后自动解析）
     if (currentStepIndex === 1) {
       if (!validateWorldStep()) return;
-      switchTab('tab-npc');
+      engine.resetGame();
+      buildConfigMessage();
+      setupScreen.classList.remove('active');
+      gameScreen.classList.add('active');
+      closeConfigModal();
+      await sendToLLM('', true);
       return;
     }
-
-    if (!validateNpcDrafts(true)) return;
-    engine.resetGame();
-    buildConfigMessage();     // 设置 engine.configMessage，不作为 history 消息
-    setupScreen.classList.remove('active');
-    gameScreen.classList.add('active');
-    closeConfigModal();
-    await sendToLLM('', true);  // 发空 user 消息，configMessage 由 engine 自动注入
   });
 
   gameConfigModal.addEventListener('click', (e) => {
@@ -687,11 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   gameSettingsBtn.addEventListener('click', () => {
-    if (!currentGameConfig) {
-      showToast('请先开始游戏后再调整 NPC 设置', true);
-      return;
-    }
-    populateNpcDrafts(currentGameConfig.npcs);
+    populateNpcDrafts(currentGameConfig?.npcs || npcDrafts);
     openConfigModal('edit-npc');
   });
 
@@ -975,25 +964,264 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // ── 回合键盘导航 ← → ───────────────────────────────────────
-  document.addEventListener('keydown', (e) => {
-    if (ui.isStreaming) return;
-    const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-    if (!engine.rounds.length) return;
+  // ── 后悔药系统 ──────────────────────────────────────────────
 
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      const round = engine.prevRound();
-      if (round) ui.renderRound(round);
-      else showToast('已是第一回合');
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      const round = engine.nextRound();
-      if (round) ui.renderRound(round);
-      else showToast('已是最新回合');
+  function extractGamePanelSummary(text) {
+    const re = /[-—─]{2,}\s*[【\[]游戏面板[】\]]\s*[-—─]{2,}([\s\S]*?)(?:[-—─]{2,}|$)/;
+    const m = text.match(re);
+    if (!m) return '';
+    return m[1].split('\n').map(l => l.trim()).filter(Boolean).slice(0, 3).join(' · ');
+  }
+
+  function updateRoundIndicator() {
+    const el = document.getElementById('round-indicator');
+    if (!el) return;
+    const { current, total } = engine.getRoundInfo();
+    if (!total) {
+      el.classList.add('hidden');
+      el.classList.remove('browsing');
+      return;
+    }
+    el.classList.remove('hidden');
+    const isBrowsing = engine.currentRoundIndex !== null;
+    el.classList.toggle('browsing', isBrowsing);
+    el.textContent = isBrowsing ? `第 ${current}/${total} 回` : `第 ${current} 回`;
+  }
+
+  function renderRoundHistory() {
+    const list = document.getElementById('rh-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!engine.rounds.length) {
+      list.innerHTML = '<div class="rh-empty">还没有任何回合记录</div>';
+      return;
+    }
+
+    // 倒序显示（最新在上）
+    [...engine.rounds].reverse().forEach((round, revIdx) => {
+      const idx = engine.rounds.length - 1 - revIdx;
+      const isCurrent = (engine.currentRoundIndex === null && idx === engine.rounds.length - 1) ||
+                         idx === engine.currentRoundIndex;
+
+      const item = document.createElement('div');
+      item.className = 'rh-item' + (isCurrent ? ' rh-item-current' : '');
+
+      const summary = extractGamePanelSummary(round.assistantOutput);
+      const userSnip = round.userInput
+        ? `<span class="rh-user-input">${htmlEsc(round.userInput.slice(0, 40))}${round.userInput.length > 40 ? '…' : ''}</span>`
+        : '';
+
+      item.innerHTML = `
+        <div class="rh-item-header">
+          <span class="rh-round-num">第 ${idx + 1} 回</span>
+          ${isCurrent ? '<span class="rh-current-badge">当前</span>' : ''}
+          ${userSnip}
+        </div>
+        ${summary ? `<div class="rh-panel-summary">${htmlEsc(summary)}</div>` : ''}
+      `;
+
+      if (!isCurrent) {
+        item.addEventListener('click', () => {
+          if (!confirm(`确定回到第 ${idx + 1} 回？之后的回合将会消失。`)) return;
+          engine.branchFromRound(idx);
+          ui.renderRound(engine.rounds[idx]);
+          document.getElementById('round-history-panel').classList.add('hidden');
+          updateRoundIndicator();
+          saveGameState();
+        });
+      }
+
+      list.appendChild(item);
+    });
+  }
+
+  const itemsBtn = document.getElementById('items-btn');
+  const roundHistoryPanel = document.getElementById('round-history-panel');
+  const rhCloseBtn = document.getElementById('rh-close-btn');
+
+  itemsBtn.addEventListener('click', () => {
+    // 首次使用教程动画
+    if (!localStorage.getItem('items_tutorial_shown')) {
+      localStorage.setItem('items_tutorial_shown', '1');
+    }
+    itemsBtn.classList.remove('items-tutorial');
+    const isHidden = roundHistoryPanel.classList.contains('hidden');
+    if (isHidden) {
+      renderRoundHistory();
+      roundHistoryPanel.classList.remove('hidden');
+    } else {
+      roundHistoryPanel.classList.add('hidden');
     }
   });
+
+  rhCloseBtn.addEventListener('click', () => {
+    roundHistoryPanel.classList.add('hidden');
+  });
+
+  // 首次进入游戏页时触发教程脉冲动画
+  if (!localStorage.getItem('items_tutorial_shown')) {
+    setTimeout(() => {
+      itemsBtn.classList.add('items-tutorial');
+    }, 1200);
+  }
+
+  // ── NPC 单个 AI 生成 ──────────────────────────────────────
+
+  async function fetchSingleNpc(cardEl) {
+    if (!engine.apiUrl || !engine.model) {
+      showToast('请先配置 API 地址和模型', true);
+      return;
+    }
+
+    const aiBtn = cardEl.querySelector('[data-action="ai-gen"]');
+    if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = '生成中…'; }
+
+    try {
+      // 获取当前世界观文本（优先从游戏配置，其次从表单）
+      const worldBg = currentGameConfig?.world?.background
+        || document.getElementById('cfg-world-bg')?.value?.trim()
+        || '';
+      const worldScene = currentGameConfig?.world?.scene
+        || document.getElementById('cfg-world-scene')?.value?.trim()
+        || '';
+      const worldCtx = [worldBg, worldScene].filter(Boolean).join('\n');
+
+      const basePrompt = getActiveNpcGenPrompt()
+        .replace('{世界观}', worldCtx)
+        .replace('{开场}', worldScene);
+
+      const singlePrompt = basePrompt + '\n\n（只生成1个NPC，不要数组，直接返回单个对象）';
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (engine.apiKey) headers.Authorization = `Bearer ${engine.apiKey}`;
+
+      const resp = await fetch(`${engine.apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: engine.model,
+          messages: [{ role: 'user', content: singlePrompt }],
+          stream: false,
+          temperature: 1.1,
+          max_tokens: 600,
+        }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const raw = data.choices?.[0]?.message?.content || '';
+      const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      let npc = JSON.parse(jsonStr);
+      // 支持 {npcs:[...]} 格式
+      if (Array.isArray(npc.npcs)) npc = npc.npcs[0];
+      if (Array.isArray(npc)) npc = npc[0];
+
+      // 填充到卡片 DOM
+      const set = (field, val) => {
+        const el = cardEl.querySelector(`[data-field="${field}"]`);
+        if (!el || !val) return;
+        el.value = val;
+        if (el.tagName === 'TEXTAREA') { autoResize(el); }
+      };
+      set('name', npc.name);
+      set('gender', npc.gender);
+      set('age', String(npc.age || ''));
+      set('job', npc.job);
+      set('traits', npc.traits);
+      set('appearance', npc.appearance);
+      set('extra', npc.extra);
+
+      // 更新 source 标签
+      const srcEl = cardEl.querySelector('.npc-editor-source');
+      if (srcEl) srcEl.textContent = 'AI';
+
+      collectNpcDraftsFromDom();
+      updateConfigActions();
+      showToast(`已生成角色：${npc.name || '(无名)'}`);
+    } catch (err) {
+      showToast('AI 生成失败：' + err.message, true);
+    } finally {
+      if (aiBtn) { aiBtn.disabled = false; aiBtn.textContent = 'AI生成'; }
+    }
+  }
+
+  // NPC 卡片：AI生成 / 删除 按钮事件代理
+  npcEditorList.addEventListener('click', (e) => {
+    const card = e.target.closest('.npc-editor-card');
+    if (!card) return;
+
+    if (e.target.closest('[data-action="ai-gen"]')) {
+      collectNpcDraftsFromDom();
+      fetchSingleNpc(card);
+      return;
+    }
+
+    const removeBtn = e.target.closest('[data-action="remove"]');
+    if (removeBtn) {
+      collectNpcDraftsFromDom();
+      npcDrafts = npcDrafts.filter(npc => npc.id !== card.dataset.id);
+      renderNpcDrafts();
+    }
+  });
+
+  // ── 首次回合 NPC 自动解析 ────────────────────────────────
+
+  function autoPopulateNpcsFromOutput(text) {
+    const delimRe = /[-—─]{2,}\s*[【\[]([^\]】]{1,30})[】\]]\s*[-—─]{2,}/g;
+    const parts = [];
+    let lastIndex = 0, lastTitle = null, match;
+    while ((match = delimRe.exec(text)) !== null) {
+      if (lastTitle !== null) {
+        parts.push({ title: lastTitle, content: text.slice(lastIndex, match.index).trim() });
+      }
+      lastTitle = match[1].trim();
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastTitle !== null) parts.push({ title: lastTitle, content: text.slice(lastIndex).trim() });
+
+    let changed = false;
+    for (const { title, content } of parts) {
+      if (!title.endsWith('面板') || /游戏|玩家/.test(title)) continue;
+      const name = title.replace(/面板$/, '').trim();
+      if (!name || npcDrafts.some(n => n.name === name)) continue;
+
+      let gender = '女', age = '', job = '', traits = '', appearance = '';
+
+      const basicLine = content.split('\n').find(l => /⚧️/.test(l));
+      if (basicLine) {
+        const gm = basicLine.match(/⚧️\s*([男女其他])/); if (gm) gender = gm[1];
+        const am = basicLine.match(/🎂\s*(\d+)/); if (am) age = am[1];
+        const jm = basicLine.match(/💼\s*([^|｜\n]+)/); if (jm) job = jm[1].trim();
+      }
+      const traitsLine = content.split('\n').find(l => /性格[：:]/.test(l));
+      if (traitsLine) { const tm = traitsLine.match(/性格[：:]\s*(.+)/); if (tm) traits = tm[1].trim(); }
+      const appLine = content.split('\n').find(l => /外貌[：:]/.test(l));
+      if (appLine) { const em = appLine.match(/外貌[：:]\s*(.+)/); if (em) appearance = em[1].trim(); }
+
+      npcDrafts.push(createNpcDraft({ name, gender, age, job, traits, appearance, source: 'ai', enabled: true }));
+      changed = true;
+    }
+
+    if (changed) {
+      // 更新 configMessage 加入 AI 识别的角色
+      if (currentGameConfig) {
+        currentGameConfig.npcs = npcDrafts;
+        buildConfigTextFromData(currentGameConfig.player, currentGameConfig.world, npcDrafts);
+      }
+    }
+  }
+
+  // ── 移动端键盘检测（visualViewport） ───────────────────────
+  if (window.visualViewport) {
+    let lastVH = window.visualViewport.height;
+    window.visualViewport.addEventListener('resize', () => {
+      const newVH = window.visualViewport.height;
+      const diff = lastVH - newVH;
+      // 高度缩减超过 100px 认为键盘弹出
+      document.body.classList.toggle('keyboard-open', diff > 100);
+      lastVH = newVH;
+    });
+  }
 
   // ── 隐藏入口：连按 10 次 Shift 显示/隐藏 Prompt管理 ────────
   (function () {

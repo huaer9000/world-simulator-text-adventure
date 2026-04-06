@@ -17,6 +17,11 @@ class Engine {
     this.rounds = [];
     // 当前浏览的回合索引，null 表示最新回合
     this.currentRoundIndex = null;
+
+    // 世界观驱动的数值系统 { statsRules, panelFormat }
+    this.worldStats = null;
+    // 角色注册表 [{ name, gender, age, job, traits, appearance, extra, source: 'ai'|'user' }]
+    this.characters = [];
   }
 
   /** 更新角色库/世界/玩家配置，下次请求时自动注入为第一条 user 消息 */
