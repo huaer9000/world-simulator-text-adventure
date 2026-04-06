@@ -544,6 +544,89 @@ select {
   background: rgba(122, 94, 40, 0.12);
 }
 
+/* ════════════════════════════════════════════════════════════
+   亮色主题 — 侧边栏面板覆写
+════════════════════════════════════════════════════════════ */
+
+/* 女性面板：背景提亮为白底浅粉，标题改深粉色 */
+[data-theme="light"] .sidebar-section-female {
+  border-color: rgba(210, 100, 150, 0.35);
+}
+
+[data-theme="light"] .sidebar-section-female .sidebar-section-title {
+  background: linear-gradient(90deg, rgba(240, 160, 195, 0.22), rgba(240, 160, 195, 0.08));
+  color: #b83268;          /* 深玫瑰粉，可读性好 */
+  border-bottom-color: rgba(210, 100, 150, 0.30);
+  text-shadow: none;
+}
+
+[data-theme="light"] .sidebar-section-female .sidebar-section-body {
+  background: linear-gradient(180deg, rgba(255, 240, 248, 0.85), rgba(255, 252, 254, 0.95));
+}
+
+[data-theme="light"] .sidebar-section-female .panel-pill {
+  background: rgba(210, 100, 150, 0.10);
+  border-color: rgba(210, 100, 150, 0.30);
+  color: #a02858;
+}
+
+[data-theme="light"] .sidebar-section-female .panel-badge {
+  background: rgba(210, 100, 150, 0.10);
+  border-color: rgba(210, 100, 150, 0.35);
+  color: #a02858;
+}
+
+[data-theme="light"] .sidebar-section-female .body-feature-item {
+  border-color: rgba(210, 100, 150, 0.28);
+  background: rgba(255, 235, 245, 0.6);
+}
+
+[data-theme="light"] .sidebar-section-female .body-feature-item-label {
+  color: #b04070;
+}
+
+[data-theme="light"] .sidebar-section-female .body-feature-item-value {
+  color: #5a1a38;
+}
+
+/* 男性面板：亮色下也给个干净的底 */
+[data-theme="light"] .sidebar-section-male {
+  border-color: rgba(60, 100, 170, 0.30);
+}
+
+[data-theme="light"] .sidebar-section-male .sidebar-section-title {
+  background: rgba(60, 100, 170, 0.08);
+  color: #2a5090;
+  border-bottom-color: rgba(60, 100, 170, 0.22);
+}
+
+[data-theme="light"] .sidebar-section-male .sidebar-section-body {
+  background: linear-gradient(180deg, rgba(235, 242, 255, 0.85), rgba(248, 250, 255, 0.95));
+}
+
+[data-theme="light"] .sidebar-section-male .panel-pill {
+  background: rgba(60, 100, 170, 0.08);
+  border-color: rgba(60, 100, 170, 0.28);
+  color: #2a5090;
+}
+
+[data-theme="light"] .sidebar-section-male .panel-badge {
+  background: rgba(60, 100, 170, 0.08);
+  border-color: rgba(60, 100, 170, 0.32);
+  color: #1e4080;
+}
+
+/* 进度条在亮色下加深轨道背景 */
+[data-theme="light"] .stat-track {
+  background: rgba(0, 0, 0, 0.10);
+}
+
+/* 记忆区在亮色下文字加深 */
+[data-theme="light"] .memory-entry { color: #6a5a40; }
+[data-theme="light"] .memory-key   { color: #a03050; }
+[data-theme="light"] .memory-long  { color: #405080; }
+[data-theme="light"] .memory-group-header { color: #7a5e28; }
+
 .toolbar-btn {
   background: transparent;
   border: none;
