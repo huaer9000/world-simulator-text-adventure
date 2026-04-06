@@ -925,6 +925,77 @@ document.addEventListener('DOMContentLoaded', () => {
     promptModal.classList.remove('hidden');
   });
 
+  // ── 显示设置 ──────────────────────────────────────────────
+
+  const DISPLAY_KEY = 'llm_game_display_v1';
+  const displayBtn   = document.getElementById('display-btn');
+  const displayPanel = document.getElementById('display-panel');
+
+  const FONT_FAMILIES = {
+    mono:  "'Courier New', Courier, monospace",
+    sans:  "system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif",
+    serif: "'Songti SC', STSong, 'SimSun', Georgia, serif",
+  };
+
+  function loadDisplaySettings() {
+    try {
+      const raw = localStorage.getItem(DISPLAY_KEY);
+      return raw ? JSON.parse(raw) : { theme: 'dark', size: 14, font: 'mono' };
+    } catch { return { theme: 'dark', size: 14, font: 'mono' }; }
+  }
+
+  function saveDisplaySettings(s) {
+    try { localStorage.setItem(DISPLAY_KEY, JSON.stringify(s)); } catch {}
+  }
+
+  function applyDisplaySettings(s) {
+    // 主题
+    document.documentElement.setAttribute('data-theme', s.theme);
+    // 字号
+    document.documentElement.style.setProperty('--font-size', s.size + 'px');
+    // 字体
+    const fam = FONT_FAMILIES[s.font] || FONT_FAMILIES.mono;
+    document.documentElement.style.setProperty('--font-family', fam);
+    // 更新面板按钮高亮
+    displayPanel.querySelectorAll('[data-theme]').forEach(b =>
+      b.classList.toggle('dp-active', b.dataset.theme === s.theme));
+    displayPanel.querySelectorAll('[data-size]').forEach(b =>
+      b.classList.toggle('dp-active', String(b.dataset.size) === String(s.size)));
+    displayPanel.querySelectorAll('[data-font]').forEach(b =>
+      b.classList.toggle('dp-active', b.dataset.font === s.font));
+  }
+
+  let displaySettings = loadDisplaySettings();
+  applyDisplaySettings(displaySettings);
+
+  displayBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    displayPanel.classList.toggle('hidden');
+  });
+
+  displayPanel.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dp-btn');
+    if (!btn) return;
+    if (btn.dataset.theme) {
+      displaySettings.theme = btn.dataset.theme;
+    } else if (btn.dataset.size) {
+      displaySettings.size = Number(btn.dataset.size);
+    } else if (btn.dataset.font) {
+      displaySettings.font = btn.dataset.font;
+    }
+    saveDisplaySettings(displaySettings);
+    applyDisplaySettings(displaySettings);
+  });
+
+  // 点击面板外部关闭
+  document.addEventListener('click', (e) => {
+    if (!displayPanel.classList.contains('hidden') &&
+        !displayPanel.contains(e.target) &&
+        e.target !== displayBtn) {
+      displayPanel.classList.add('hidden');
+    }
+  });
+
   promptCloseBtn.addEventListener('click', () => promptModal.classList.add('hidden'));
 
   promptModal.addEventListener('click', (e) => {

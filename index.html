@@ -132,7 +132,36 @@
         <button id="save-game-btn" class="toolbar-btn">存档</button>
         <button id="load-game-btn" class="toolbar-btn">读档</button>
         <button id="backdoor-btn"  class="toolbar-btn hidden">Prompt管理</button>
+        <button id="display-btn"   class="toolbar-btn">显示</button>
         <button id="settings-btn"  class="toolbar-btn">API配置</button>
+      </div>
+    </div>
+
+    <!-- 显示设置浮层 -->
+    <div id="display-panel" class="display-panel hidden">
+      <div class="dp-section">
+        <div class="dp-label">主题</div>
+        <div class="dp-row">
+          <button class="dp-btn" data-theme="dark">🌑 暗色</button>
+          <button class="dp-btn" data-theme="light">☀️ 亮色</button>
+        </div>
+      </div>
+      <div class="dp-section">
+        <div class="dp-label">字号</div>
+        <div class="dp-row">
+          <button class="dp-btn" data-size="13">小</button>
+          <button class="dp-btn" data-size="15">中</button>
+          <button class="dp-btn" data-size="17">大</button>
+          <button class="dp-btn" data-size="19">特大</button>
+        </div>
+      </div>
+      <div class="dp-section">
+        <div class="dp-label">字体</div>
+        <div class="dp-row">
+          <button class="dp-btn" data-font="mono">等宽</button>
+          <button class="dp-btn" data-font="sans">黑体</button>
+          <button class="dp-btn" data-font="serif">宋体</button>
+        </div>
       </div>
     </div>
 
