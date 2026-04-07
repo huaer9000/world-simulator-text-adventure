@@ -1442,7 +1442,7 @@ code.md-code {
 /* ── 输入区 ───────────────────────────────────────────────── */
 #input-area {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
   width: 100%;
   max-width: var(--game-rail-width);
@@ -1458,6 +1458,7 @@ code.md-code {
 #player-input {
   flex: 1;
   resize: none;
+  height: 44px;
   min-height: 44px;
   max-height: 120px;
   overflow-y: auto;
