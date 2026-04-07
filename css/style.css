@@ -97,6 +97,7 @@ body {
 .screen {
   display: none;
   height: 100vh;
+  height: 100dvh; /* 移动端动态视口，避免地址栏遮挡 */
 }
 
 .screen.active {
@@ -145,6 +146,7 @@ body {
 .page-shell {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-y: auto;
   padding: 40px 24px;
   display: flex;
@@ -166,6 +168,7 @@ body {
 
 .page-card-scrollable {
   height: min(840px, calc(100vh - 80px));
+  height: min(840px, calc(100dvh - 80px));
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -508,6 +511,7 @@ select {
 ════════════════════════════════════════════════════════════ */
 #game-screen {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -2122,6 +2126,18 @@ textarea.auto-resize {
   .modal-wide,
   .prompt-modal-content {
     max-width: 100vw;
+  }
+
+  /* 配置屏：宽卡片在移动端撑满 */
+  .page-card-wide,
+  #game-config-screen .page-card {
+    max-width: 100%;
+  }
+
+  /* 配置屏滚动卡片高度适配动态视口 */
+  .page-card-scrollable {
+    height: calc(100dvh - 120px);
+    height: calc(100vh - 120px); /* fallback */
   }
 
   .form-row {
