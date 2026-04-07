@@ -18,10 +18,6 @@ class Engine {
     // 当前浏览的回合索引，null 表示最新回合
     this.currentRoundIndex = null;
 
-    // 世界观驱动的数值系统 { statsRules, panelFormat }
-    this.worldStats = null;
-    // 角色注册表 [{ name, gender, age, job, traits, appearance, extra, source: 'ai'|'user' }]
-    this.characters = [];
   }
 
   /** 更新角色库/世界/玩家配置，下次请求时自动注入为第一条 user 消息 */
@@ -90,6 +86,7 @@ class Engine {
       this.currentRoundIndex =
         Number.isInteger(data.currentRoundIndex) ? data.currentRoundIndex : null;
       this.configMessage = data.configMessage || '';
+      this._hydrateDisplayHistoryFromRounds();
 
       return data;
     } catch (e) {
@@ -123,17 +120,18 @@ class Engine {
   // ── 对话发送 ─────────────────────────────────────────────
 
   async sendMessage(userText) {
-    if (userText && userText.trim()) {
-      this.conversationHistory.push({ role: 'user', content: userText.trim() });
+    const pendingUserText = userText && userText.trim() ? userText.trim() : '';
+    if (pendingUserText) {
+      this.conversationHistory.push({ role: 'user', content: pendingUserText });
     }
     this._trimHistory();
 
-    // 每次请求都把最新配置注入为第一条 user 消息，不存入 conversationHistory
-    const messages = [{ role: 'system', content: getActiveSystemPrompt() }];
+    const systemContent = getActiveSystemPrompt();
+    const messages = [{ role: 'system', content: systemContent }];
     if (this.configMessage) {
       messages.push({ role: 'user', content: this.configMessage });
     }
-    messages.push(...this.conversationHistory);
+    messages.push(...this._buildContextMessages(pendingUserText));
 
     const headers = { 'Content-Type': 'application/json' };
     if (this.apiKey) headers['Authorization'] = `Bearer ${this.apiKey}`;
@@ -164,6 +162,166 @@ class Engine {
     return resp;
   }
 
+  _buildContextMessages(pendingUserText = '') {
+    const messages = [];
+    const recentRoundCount = 5;
+
+    if (this.rounds.length) {
+      const olderRounds = this.rounds.slice(0, -recentRoundCount);
+      const recentRounds = this.rounds.slice(-recentRoundCount);
+
+      if (olderRounds.length) {
+        messages.push({
+          role: 'system',
+          content: this._buildHistorySummary(olderRounds),
+        });
+      }
+
+      recentRounds.forEach(round => {
+        if (round.userInput) {
+          messages.push({ role: 'user', content: round.userInput });
+        }
+        if (round.assistantOutput) {
+          messages.push({ role: 'assistant', content: round.assistantOutput });
+        }
+      });
+    } else if (this.conversationHistory.length) {
+      messages.push(...this.conversationHistory
+        .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+        .map(msg => ({ role: msg.role, content: msg.displayContent || msg.content })));
+      return messages;
+    }
+
+    if (pendingUserText) {
+      messages.push({ role: 'user', content: pendingUserText });
+    }
+
+    return messages;
+  }
+
+  _buildHistorySummary(rounds) {
+    const roundSummaries = rounds.map((round, idx) => this._summarizeRound(round, idx + 1)).filter(Boolean);
+    const npcMap = new Map();
+    const anchorSet = new Set();
+
+    rounds.forEach(round => {
+      const sections = this._splitSections(round.assistantOutput || '');
+      const memory = sections['记忆'] || sections['记忆区'] || '';
+      memory.split('\n')
+        .map(line => line.trim())
+        .filter(line => /^📌/.test(line))
+        .forEach(line => anchorSet.add(line));
+
+      Object.entries(sections).forEach(([title, content]) => {
+        if (!title.startsWith('NPC:')) return;
+        const name = title.slice(4).trim();
+        if (!name) return;
+        const statsLine = content.split('\n').map(line => line.trim()).find(line =>
+          /(?:📊\s*)?数值[：:]/u.test(line) || /(好感度|警惕度|理智值)[：:]\s*-?\d+\/\d+/u.test(line)
+        );
+        const emotionLine = content.split('\n').map(line => line.trim()).find(line => /💗\s*情绪[：:]/u.test(line));
+        if (!statsLine && !emotionLine) return;
+        npcMap.set(name, [emotionLine, statsLine].filter(Boolean).join(' | '));
+      });
+    });
+
+    const summaryLines = [];
+    const firstRound = rounds[0];
+    const lastRound = rounds[rounds.length - 1];
+    summaryLines.push(`[历史摘要]`);
+    summaryLines.push(`摘要范围：第1回至第${rounds.length}回。以下内容是更早历史的压缩摘要，后面仍会附上最近5回合完整记录。`);
+
+    if (roundSummaries.length) {
+      summaryLines.push('', '主线回顾：');
+      this._compressSummaryItems(roundSummaries, 8).forEach(item => {
+        summaryLines.push(`- ${item}`);
+      });
+    }
+
+    if (npcMap.size) {
+      summaryLines.push('', `角色状态（摘要截止第${rounds.length}回）：`);
+      [...npcMap.entries()].slice(0, 8).forEach(([name, value]) => {
+        summaryLines.push(`- ${name}：${value}`);
+      });
+    }
+
+    if (anchorSet.size) {
+      summaryLines.push('', '关键锚点：');
+      [...anchorSet].slice(-6).forEach(item => {
+        summaryLines.push(`- ${item.replace(/^📌\s*/, '')}`);
+      });
+    }
+
+    const firstScene = this._extractGameField(this._splitSections(firstRound?.assistantOutput || '')['游戏面板'] || '', '场所');
+    const lastScene = this._extractGameField(this._splitSections(lastRound?.assistantOutput || '')['游戏面板'] || '', '场所');
+    if (firstScene || lastScene) {
+      summaryLines.push('', `场景迁移：${[firstScene, lastScene].filter(Boolean).join(' → ')}`);
+    }
+
+    return summaryLines.join('\n').trim();
+  }
+
+  _compressSummaryItems(items, maxItems = 8) {
+    if (items.length <= maxItems) return items;
+    const head = items.slice(0, 2);
+    const tail = items.slice(-(maxItems - 3));
+    return [...head, `……中间省略 ${items.length - head.length - tail.length} 回已压缩……`, ...tail];
+  }
+
+  _summarizeRound(round, roundNumber) {
+    const sections = this._splitSections(round.assistantOutput || '');
+    const gamePanel = sections['游戏面板'] || '';
+    const plot = this._extractGameField(gamePanel, '情节');
+    const place = this._extractGameField(gamePanel, '场所');
+    const time = this._extractGameField(gamePanel, '时间');
+    const body = this._extractBodySnippet(sections['正文'] || sections['正文内容'] || round.assistantOutput || '');
+
+    const pieces = [];
+    if (time) pieces.push(time);
+    if (place) pieces.push(place);
+    if (plot) pieces.push(plot);
+    else if (body) pieces.push(body);
+    return `第${roundNumber}回：${pieces.join('｜')}`;
+  }
+
+  _extractBodySnippet(text) {
+    const clean = String(text || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!clean) return '';
+    return clean.length > 42 ? clean.slice(0, 42) + '…' : clean;
+  }
+
+  _extractGameField(content, label) {
+    const line = String(content || '')
+      .split('\n')
+      .map(item => item.trim())
+      .find(item => new RegExp(`^[^\\n]*${label}[：:]`, 'u').test(item));
+    if (!line) return '';
+    const idx = line.search(/[：:]/);
+    return idx >= 0 ? line.slice(idx + 1).trim() : '';
+  }
+
+  _splitSections(text) {
+    const delimRe = /[-—─]{2,}\s*[【\[]([^\]】]{1,30})[】\]]\s*[-—─]{2,}/g;
+    const sections = {};
+    let lastIndex = 0;
+    let lastTitle = null;
+    let match;
+
+    while ((match = delimRe.exec(text)) !== null) {
+      if (lastTitle !== null) {
+        sections[lastTitle] = text.slice(lastIndex, match.index).trim();
+      }
+      lastTitle = match[1].trim();
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastTitle !== null) {
+      sections[lastTitle] = text.slice(lastIndex).trim();
+    }
+    return sections;
+  }
+
   stopStreaming() {
     if (this.abortController) {
       this.abortController.abort();
@@ -182,8 +340,13 @@ class Engine {
     const lastUser = [...this.conversationHistory].reverse().find(m => m.role === 'user');
     const userInput = lastUser?.content || '';
 
-    const slimText = this._extractSlim(fullText);
-    this.conversationHistory.push({ role: 'assistant', content: slimText });
+    const displayText = fullText.trim();
+    const slimText = this._extractSlim(displayText);
+    this.conversationHistory.push({
+      role: 'assistant',
+      content: slimText,
+      displayContent: displayText,
+    });
 
     if (this.currentRoundIndex !== null) {
       this.rounds = this.rounds.slice(0, this.currentRoundIndex + 1);
@@ -192,15 +355,16 @@ class Engine {
 
     this.rounds.push({
       userInput,
-      assistantOutput: fullText.trim(),
+      assistantOutput: displayText,
       historySnapshot: JSON.parse(JSON.stringify(this.conversationHistory)),
     });
   }
 
   /**
    * 从 AI 完整回复中提取精简版存入历史：
-   * 保留：游戏面板、正文、NPC 数值行（好感/欲望/警惕）、记忆区
-   * 去除：行动建议、NPC 外貌/情绪/心声/性格（角色库已有）、玩家面板
+   * 保留：正文、游戏面板、NPC 面板（保留结构）、建议、记忆区
+   * 去除：玩家面板
+   * 目的：继续喂模型时仍保持完整分节结构，避免数回合后输出格式漂移。
    */
   _extractSlim(fullText) {
     const delimRe = /[-—─]{2,}\s*[【\[]([^\]】]{1,30})[】\]]\s*[-—─]{2,}/g;
@@ -225,20 +389,44 @@ class Engine {
 
     const result = [];
     for (const { title, content } of parts) {
-      // 保留：游戏面板、正文、记忆区
-      if (/游戏面板|记忆区/.test(title) || title === '正文' || title === '正文内容') {
-        result.push(`——【${title}】——\n${content}`);
+      // 保留正文
+      if (title === '正文' || title === '正文内容') {
+        result.push(`——【正文】——\n${content}`);
         continue;
       }
-      // NPC 面板：只保留数值行（好感/欲望/警惕），其余丢弃
-      if (title.endsWith('面板') && !title.includes('玩家面板')) {
-        const statsLine = content.split('\n').find(l =>
-          /[好感欲望警惕][：:]\s*\d+\/\d+/.test(l)
-        );
-        if (statsLine) result.push(statsLine.trim());
+      // 保留游戏面板
+      if (title === '游戏面板') {
+        result.push(`——【游戏面板】——\n${content}`);
         continue;
       }
-      // 丢弃：玩家面板、行动建议、其他
+      // 保留记忆（新节名"记忆"，兼容旧"记忆区"）
+      if (title === '记忆' || title === '记忆区') {
+        result.push(`——【记忆】——\n${content}`);
+        continue;
+      }
+      // 保留建议，避免多轮后模型丢失 A/B/C/D 输出习惯
+      if (title === '建议' || title === '行动建议') {
+        result.push(`——【建议】——\n${content}`);
+        continue;
+      }
+      // NPC 面板：保留结构化标题和关键字段，避免多轮后格式漂移
+      if (title.startsWith('NPC:') || (title.endsWith('面板') && !['游戏面板','玩家面板'].includes(title))) {
+        const lines = content
+          .split('\n')
+          .map(line => line.trim())
+          .filter(Boolean)
+          .filter(line => (
+            /⚧️|🎂|💼|💗\s*情绪|👔\s*外貌|🏷️\s*性格|^(?:📊\s*)?数值[：:]/u.test(line) ||
+            /(好感度|警惕度|理智值)[：:]\s*-?\d+\/\d+/u.test(line) ||
+            /👀\s*状态[：:]/u.test(line)
+          ));
+        if (lines.length) {
+          const panelTitle = title.startsWith('NPC:') ? title : `NPC:${title.replace(/面板$/, '').trim()}`;
+          result.push(`——【${panelTitle}】——\n${lines.join('\n')}`);
+        }
+        continue;
+      }
+      // 丢弃：玩家面板、其他
     }
 
     return result.join('\n\n') || fullText.trim();
@@ -316,7 +504,24 @@ class Engine {
   _trimHistory() {
     if (this.conversationHistory.length > MAX_HISTORY) {
       this.conversationHistory = this.conversationHistory.slice(-TRIM_TO);
+      // 裁剪后若首条是 user，会与 configMessage(user) 形成连续 user 消息，导致模型失控
+      // 去掉开头的 user 条目，确保 history 始终以 assistant 打头
+      while (this.conversationHistory.length && this.conversationHistory[0].role === 'user') {
+        this.conversationHistory.shift();
+      }
     }
+  }
+
+  _hydrateDisplayHistoryFromRounds() {
+    const assistantMessages = this.conversationHistory.filter(msg => msg.role === 'assistant');
+    if (!assistantMessages.length || !this.rounds.length) return;
+
+    const mappedRounds = this.rounds.slice(-assistantMessages.length);
+    assistantMessages.forEach((msg, idx) => {
+      if (!msg.displayContent && mappedRounds[idx]?.assistantOutput) {
+        msg.displayContent = mappedRounds[idx].assistantOutput;
+      }
+    });
   }
 
   // ── 重置 ─────────────────────────────────────────────────
